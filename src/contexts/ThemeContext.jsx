@@ -15,6 +15,7 @@ export const ThemeProvider = ({ children }) => {
   const [currentTheme, setCurrentTheme] = useState('default');
   const [customBackground, setCustomBackground] = useState(null);
   const [backgroundOpacity, setBackgroundOpacity] = useState(0.3);
+  const [isAutoThemeEnabled, setIsAutoThemeEnabled] = useState(false);
 
   // Time-based theme presets
   const timeThemes = {
@@ -81,6 +82,7 @@ export const ThemeProvider = ({ children }) => {
     const savedTheme = localStorage.getItem('chatTheme');
     const savedBackground = localStorage.getItem('customBackground');
     const savedOpacity = localStorage.getItem('backgroundOpacity');
+    const savedAutoTheme = localStorage.getItem('autoThemeEnabled');
 
     if (savedTheme) {
       setCurrentTheme(savedTheme);
@@ -91,7 +93,33 @@ export const ThemeProvider = ({ children }) => {
     if (savedOpacity) {
       setBackgroundOpacity(parseFloat(savedOpacity));
     }
+    if (savedAutoTheme === 'true') {
+      setIsAutoThemeEnabled(true);
+      // Set theme based on current time immediately
+      const suggestedTheme = getSuggestedThemeKey();
+      setCurrentTheme(suggestedTheme);
+    }
   }, []);
+
+  // Auto theme switching effect
+  useEffect(() => {
+    if (!isAutoThemeEnabled) return;
+
+    const checkTimeAndUpdateTheme = () => {
+      const suggestedTheme = getSuggestedThemeKey();
+      if (currentTheme !== suggestedTheme && timeThemes[suggestedTheme]) {
+        setCurrentTheme(suggestedTheme);
+      }
+    };
+
+    // Check every minute for theme changes
+    const interval = setInterval(checkTimeAndUpdateTheme, 60000);
+    
+    // Also check immediately
+    checkTimeAndUpdateTheme();
+
+    return () => clearInterval(interval);
+  }, [isAutoThemeEnabled, currentTheme]);
 
   // Save theme preferences
   const saveThemePreferences = (theme, background, opacity) => {
@@ -130,8 +158,8 @@ export const ThemeProvider = ({ children }) => {
     return timeThemes[currentTheme] || defaultTheme;
   };
 
-  // Get suggested theme based on current time
-  const getSuggestedTheme = () => {
+  // Get suggested theme key based on current time
+  const getSuggestedThemeKey = () => {
     const now = new Date();
     const hour = now.getHours();
 
@@ -144,10 +172,16 @@ export const ThemeProvider = ({ children }) => {
     return 'midnight';
   };
 
+  // Get suggested theme based on current time (for UI display)
+  const getSuggestedTheme = () => {
+    return getSuggestedThemeKey();
+  };
+
   const value = {
     currentTheme,
     customBackground,
     backgroundOpacity,
+    isAutoThemeEnabled,
     timeThemes,
     defaultTheme,
     getCurrentThemeConfig,
@@ -155,13 +189,25 @@ export const ThemeProvider = ({ children }) => {
     setTheme: (theme) => saveThemePreferences(theme, undefined, undefined),
     setCustomBackground: (background) => saveThemePreferences(undefined, background, undefined),
     setBackgroundOpacity: (opacity) => saveThemePreferences(undefined, undefined, opacity),
+    enableAutoTheme: () => {
+      setIsAutoThemeEnabled(true);
+      localStorage.setItem('autoThemeEnabled', 'true');
+      const suggestedTheme = getSuggestedThemeKey();
+      setCurrentTheme(suggestedTheme);
+    },
+    disableAutoTheme: () => {
+      setIsAutoThemeEnabled(false);
+      localStorage.setItem('autoThemeEnabled', 'false');
+    },
     resetToDefault: () => {
       localStorage.removeItem('chatTheme');
       localStorage.removeItem('customBackground');
       localStorage.removeItem('backgroundOpacity');
+      localStorage.removeItem('autoThemeEnabled');
       setCurrentTheme('default');
       setCustomBackground(null);
       setBackgroundOpacity(0.3);
+      setIsAutoThemeEnabled(false);
     }
   };
 

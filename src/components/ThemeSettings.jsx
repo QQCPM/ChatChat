@@ -7,6 +7,7 @@ const ThemeSettings = ({ onClose }) => {
     currentTheme,
     customBackground,
     backgroundOpacity,
+    isAutoThemeEnabled,
     timeThemes,
     defaultTheme,
     getCurrentThemeConfig,
@@ -14,6 +15,8 @@ const ThemeSettings = ({ onClose }) => {
     setTheme,
     setCustomBackground,
     setBackgroundOpacity,
+    enableAutoTheme,
+    disableAutoTheme,
     resetToDefault
   } = useTheme();
 
@@ -57,7 +60,9 @@ const ThemeSettings = ({ onClose }) => {
   };
 
   const handleThemeSelect = (themeKey) => {
-    setTheme(themeKey);
+    if (!isAutoThemeEnabled) {
+      setTheme(themeKey);
+    }
   };
 
   const removeCustomBackground = () => {
@@ -117,29 +122,57 @@ const ThemeSettings = ({ onClose }) => {
         <div className="flex-1 p-6 overflow-y-auto">
           {activeTab === 'presets' && (
             <div className="space-y-4">
-              {/* Suggested Theme */}
-              <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+              {/* Auto Theme Toggle */}
+              <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-semibold text-gray-800">Suggested for Now</h3>
+                    <h3 className="font-semibold text-gray-800">🕐 Adaptive Time Themes</h3>
                     <p className="text-sm text-gray-600">
-                      {timeThemes[suggestedTheme].mood} {timeThemes[suggestedTheme].name}
+                      Automatically change theme based on time of day
                     </p>
-                    <p className="text-xs text-gray-500">{timeThemes[suggestedTheme].time}</p>
                   </div>
                   <button
-                    onClick={() => handleThemeSelect(suggestedTheme)}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+                    onClick={isAutoThemeEnabled ? disableAutoTheme : enableAutoTheme}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                      isAutoThemeEnabled 
+                        ? 'bg-purple-500 text-white hover:bg-purple-600' 
+                        : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                    }`}
                   >
-                    Apply
+                    {isAutoThemeEnabled ? 'ON' : 'OFF'}
                   </button>
                 </div>
               </div>
 
+              {/* Suggested Theme */}
+              {!isAutoThemeEnabled && (
+                <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-gray-800">Suggested for Now</h3>
+                      <p className="text-sm text-gray-600">
+                        {timeThemes[suggestedTheme].mood} {timeThemes[suggestedTheme].name}
+                      </p>
+                      <p className="text-xs text-gray-500">{timeThemes[suggestedTheme].time}</p>
+                    </div>
+                    <button
+                      onClick={() => handleThemeSelect(suggestedTheme)}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Default Theme */}
               <div 
-                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                  currentTheme === 'default' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 bg-white/60 hover:bg-white/80'
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  isAutoThemeEnabled 
+                    ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60'
+                    : currentTheme === 'default' 
+                      ? 'border-pink-500 bg-pink-50 cursor-pointer' 
+                      : 'border-gray-200 bg-white/60 hover:bg-white/80 cursor-pointer'
                 }`}
                 onClick={() => handleThemeSelect('default')}
               >
@@ -164,8 +197,12 @@ const ThemeSettings = ({ onClose }) => {
                 {Object.entries(timeThemes).map(([key, theme]) => (
                   <div 
                     key={key}
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      currentTheme === key ? 'border-pink-500 bg-pink-50' : 'border-gray-200 bg-white/60 hover:bg-white/80'
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      isAutoThemeEnabled 
+                        ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60'
+                        : currentTheme === key 
+                          ? 'border-pink-500 bg-pink-50 cursor-pointer' 
+                          : 'border-gray-200 bg-white/60 hover:bg-white/80 cursor-pointer'
                     }`}
                     onClick={() => handleThemeSelect(key)}
                   >

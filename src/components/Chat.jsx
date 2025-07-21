@@ -5,6 +5,7 @@ import PhotoAlbum from "./PhotoAlbum";
 import StorageManager from "./StorageManager";
 import RelationshipStats from "./RelationshipStats";
 import ThemeSettings from "./ThemeSettings";
+import ThemeElements from "./ThemeElements";
 import { useTheme } from "../contexts/ThemeContext";
 
 const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) => {
@@ -22,7 +23,7 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
   const [showThemeSettings, setShowThemeSettings] = useState(false);
   
   // Theme context
-  const { getCurrentThemeConfig } = useTheme();
+  const { getCurrentThemeConfig, currentTheme } = useTheme();
   const themeConfig = getCurrentThemeConfig();
 
   // Get background style based on theme
@@ -249,13 +250,18 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
   };
 
   return (
-    <div className={`min-h-screen w-full ${getBackgroundClasses()} flex flex-col items-center justify-center p-4 relative`}>
+    <div className={`min-h-screen w-full ${getBackgroundClasses()} flex flex-col items-center justify-center p-4 relative transition-all duration-1000 ease-in-out`}>
       {/* Custom background overlay */}
       {themeConfig.background && (
         <div 
           className="absolute inset-0 z-0"
           style={getBackgroundStyle()}
         />
+      )}
+      
+      {/* Theme Elements */}
+      {!themeConfig.background && themeConfig.gradient && currentTheme !== 'default' && currentTheme !== 'custom' && (
+        <ThemeElements theme={currentTheme} />
       )}
       <div className="w-full max-w-2xl h-[80vh] bg-white/70 backdrop-blur-lg rounded-2xl border border-white/30 shadow-lg flex flex-col relative z-10">
         <header className="p-4 border-b border-white/30">
