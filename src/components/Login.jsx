@@ -10,12 +10,20 @@ const Login = ({ onLogin }) => {
   const [createNew, setCreateNew] = useState(false);
 
   const calculateLoveDays = () => {
-    const startDate = new Date('2024-07-21T00:00:00');
+    // Start date in your local timezone (July 21, 2024)
+    const startDate = new Date(2024, 6, 21); // Month is 0-indexed, so 6 = July
+    
+    // Current date in your current timezone
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to start of day
-    const timeDiff = today.getTime() - startDate.getTime();
-    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
-    return daysDiff;
+    
+    // Calculate difference in days, accounting for timezone
+    const startTime = startDate.getTime();
+    const currentTime = today.getTime();
+    
+    // Calculate days with proper timezone consideration
+    const daysDiff = Math.ceil((currentTime - startTime) / (1000 * 3600 * 24));
+    
+    return Math.max(1, daysDiff); // Ensure at least 1 day
   };
 
   const generateRoomCode = () => {

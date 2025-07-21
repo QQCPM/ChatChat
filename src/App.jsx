@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import Login from "./components/Login";
 import Chat from "./components/Chat";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
@@ -96,7 +97,7 @@ const App = () => {
   };
 
   return (
-    <>
+    <ThemeProvider>
       {currentUser ? (
         <Chat
           currentUser={currentUser}
@@ -108,7 +109,7 @@ const App = () => {
       ) : (
         <Login onLogin={handleLogin} />
       )}
-    </>
+    </ThemeProvider>
   );
 };
 

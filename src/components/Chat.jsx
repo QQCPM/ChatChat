@@ -4,6 +4,8 @@ import Button from "./ui/Button";
 import PhotoAlbum from "./PhotoAlbum";
 import StorageManager from "./StorageManager";
 import RelationshipStats from "./RelationshipStats";
+import ThemeSettings from "./ThemeSettings";
+import { useTheme } from "../contexts/ThemeContext";
 
 const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) => {
   const [text, setText] = useState("");
@@ -17,6 +19,64 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [recordedChunks, setRecordedChunks] = useState([]);
   const [showStats, setShowStats] = useState(false);
+  const [showThemeSettings, setShowThemeSettings] = useState(false);
+  
+  // Theme context
+  const { getCurrentThemeConfig } = useTheme();
+  const themeConfig = getCurrentThemeConfig();
+
+  // Get background style based on theme
+  const getBackgroundStyle = () => {
+    if (themeConfig.background) {
+      // Custom background
+      return {
+        backgroundImage: `url(${themeConfig.background})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        opacity: themeConfig.opacity || 0.3
+      };
+    } else {
+      // Gradient background
+      return {};
+    }
+  };
+
+  const getBackgroundClasses = () => {
+    if (themeConfig.background) {
+      return 'bg-gray-100'; // Fallback color for custom backgrounds
+    } else {
+      return `bg-gradient-to-br ${themeConfig.gradient || 'from-rose-100 to-teal-100'}`;
+    }
+  };
+
+  // Get message bubble style based on theme and readability
+  const getMessageBubbleStyle = (isCurrentUser) => {
+    const baseClasses = "p-3 rounded-lg max-w-xs";
+    
+    if (themeConfig.background || themeConfig.bubbleStyle === 'adaptive') {
+      // For custom backgrounds or adaptive themes, use stronger contrast
+      if (isCurrentUser) {
+        return `${baseClasses} bg-pink-600 text-white shadow-lg`;
+      } else {
+        return `${baseClasses} bg-white text-gray-800 shadow-lg border border-gray-200`;
+      }
+    } else if (themeConfig.bubbleStyle === 'dark') {
+      // For dark themes
+      if (isCurrentUser) {
+        return `${baseClasses} bg-pink-500 text-white`;
+      } else {
+        return `${baseClasses} bg-gray-700 text-white`;
+      }
+    } else {
+      // Default light theme style
+      if (isCurrentUser) {
+        return `${baseClasses} bg-gradient-to-r from-pink-500 to-rose-500 text-white`;
+      } else {
+        return `${baseClasses} bg-gray-200 text-gray-800`;
+      }
+    }
+  };
 
   // Load draft message on component mount
   useEffect(() => {
@@ -189,8 +249,15 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-rose-100 to-teal-100 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-2xl h-[80vh] bg-white/70 backdrop-blur-lg rounded-2xl border border-white/30 shadow-lg flex flex-col">
+    <div className={`min-h-screen w-full ${getBackgroundClasses()} flex flex-col items-center justify-center p-4 relative`}>
+      {/* Custom background overlay */}
+      {themeConfig.background && (
+        <div 
+          className="absolute inset-0 z-0"
+          style={getBackgroundStyle()}
+        />
+      )}
+      <div className="w-full max-w-2xl h-[80vh] bg-white/70 backdrop-blur-lg rounded-2xl border border-white/30 shadow-lg flex flex-col relative z-10">
         <header className="p-4 border-b border-white/30">
           <div className="flex items-center justify-between">
             <div>
@@ -225,6 +292,15 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 00-2-2z" />
                 </svg>
               </button>
+              <button
+                onClick={() => setShowThemeSettings(true)}
+                className="p-2 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg hover:from-violet-600 hover:to-purple-600 transition-all duration-300"
+                title="Theme Settings"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
+                </svg>
+              </button>
               <button 
                 onClick={onLogout}
                 className="px-3 py-1.5 text-sm bg-gradient-to-r from-pink-500 to-rose-500 text-white font-medium rounded-lg hover:from-pink-600 hover:to-rose-600 transition-all duration-300"
@@ -242,7 +318,7 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
                 key={msg.id}
                 className={`flex ${msg.user === currentUser ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`p-3 rounded-lg max-w-xs ${msg.user === currentUser ? "bg-gradient-to-r from-pink-500 to-rose-500 text-white" : "bg-gray-200 text-gray-800"}`}>
+                  className={getMessageBubbleStyle(msg.user === currentUser)}>
                   {msg.text.startsWith("data:image/") || msg.text.startsWith("http") ? (
                     <div className="group relative">
                       <img src={msg.text} alt="sent" className="rounded-lg max-w-full h-auto" />
@@ -511,6 +587,11 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
             </div>
           </div>
         </div>
+      )}
+
+      {/* Theme Settings Modal */}
+      {showThemeSettings && (
+        <ThemeSettings onClose={() => setShowThemeSettings(false)} />
       )}
     </div>
   );

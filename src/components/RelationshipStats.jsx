@@ -20,12 +20,11 @@ const RelationshipStats = ({ currentRoom, onClose }) => {
 
   const calculateStats = () => {
     try {
-      // Calculate days together
-      const startDate = new Date('2024-07-21T00:00:00');
+      // Calculate days together with timezone awareness
+      const startDate = new Date(2024, 6, 21); // July 21, 2024 in local timezone
       const today = new Date();
-      today.setHours(0, 0, 0, 0);
       const timeDiff = today.getTime() - startDate.getTime();
-      const daysTogether = Math.ceil(timeDiff / (1000 * 3600 * 24));
+      const daysTogether = Math.max(1, Math.ceil(timeDiff / (1000 * 3600 * 24)));
 
       // Load messages
       const messages = JSON.parse(localStorage.getItem(`chatMessages_${currentRoom}`) || '[]');
