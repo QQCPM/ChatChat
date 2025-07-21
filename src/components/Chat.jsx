@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import Button from "./ui/Button";
 import PhotoAlbum from "./PhotoAlbum";
 import StorageManager from "./StorageManager";
+import RelationshipStats from "./RelationshipStats";
 
 const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) => {
   const [text, setText] = useState("");
@@ -11,6 +12,11 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
   const [showAlbum, setShowAlbum] = useState(false);
   const [selectedPhotoForAlbum, setSelectedPhotoForAlbum] = useState(null);
   const [showStorageManager, setShowStorageManager] = useState(false);
+  const [showVideoRecorder, setShowVideoRecorder] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [recordedChunks, setRecordedChunks] = useState([]);
+  const [showStats, setShowStats] = useState(false);
 
   // Load draft message on component mount
   useEffect(() => {
@@ -103,6 +109,23 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
           }
         };
         reader.readAsDataURL(file);
+      } else if (file.type.startsWith('video/')) {
+        // Handle video files
+        reader.onload = (e) => {
+          try {
+            const videoData = {
+              type: 'video',
+              name: file.name,
+              data: e.target.result,
+              size: file.size
+            };
+            onSendMessage(JSON.stringify(videoData));
+          } catch (error) {
+            console.error('Error processing video:', error);
+            alert(`Error uploading video "${file.name}".`);
+          }
+        };
+        reader.readAsDataURL(file);
       } else {
         alert(`File type not supported: ${file.type}`);
       }
@@ -110,6 +133,59 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
 
     // Reset input
     event.target.value = '';
+  };
+
+  const startVideoRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { width: 640, height: 480 }, 
+        audio: true 
+      });
+      
+      const recorder = new MediaRecorder(stream);
+      const chunks = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const videoData = {
+            type: 'video',
+            name: `video_${Date.now()}.webm`,
+            data: e.target.result,
+            size: blob.size
+          };
+          onSendMessage(JSON.stringify(videoData));
+        };
+        reader.readAsDataURL(blob);
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+        setIsRecording(false);
+        setShowVideoRecorder(false);
+        setRecordedChunks([]);
+      };
+
+      setMediaRecorder(recorder);
+      setRecordedChunks(chunks);
+      recorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      alert('Could not access camera. Please check permissions.');
+    }
+  };
+
+  const stopVideoRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+    }
   };
 
   return (
@@ -138,6 +214,15 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setShowStats(true)}
+                className="p-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all duration-300"
+                title="Relationship Stats"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 00-2-2z" />
                 </svg>
               </button>
               <button 
@@ -193,6 +278,25 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
                             </a>
                           </div>
                         );
+                      } else if (msg.text.startsWith('{"type":"video"')) {
+                        const videoData = JSON.parse(msg.text);
+                        return (
+                          <div className="space-y-2">
+                            <video 
+                              controls 
+                              className="w-full max-w-sm rounded-lg"
+                              preload="metadata"
+                            >
+                              <source src={videoData.data} type="video/webm" />
+                              <source src={videoData.data} type="video/mp4" />
+                              Your browser does not support video playback.
+                            </video>
+                            <div className="flex items-center justify-between text-xs opacity-70">
+                              <span>{videoData.name}</span>
+                              <span>{(videoData.size / 1024).toFixed(1)} KB</span>
+                            </div>
+                          </div>
+                        );
                       } else {
                         return <p className="whitespace-pre-wrap">{msg.text}</p>;
                       }
@@ -213,7 +317,7 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
             <div className="mb-4 space-y-2">
               <input
                 type="file"
-                accept="image/*,application/pdf"
+                accept="image/*,application/pdf,video/*"
                 multiple
                 onChange={handleFileUpload}
                 className="hidden"
@@ -226,7 +330,7 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Upload Files (Photos & PDFs)
+                Upload Files (Photos, Videos & PDFs)
               </label>
             </div>
             <div className="grid grid-cols-4 gap-3 max-h-32 overflow-y-auto">
@@ -259,6 +363,16 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowVideoRecorder(true)}
+              className="p-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg hover:from-purple-600 hover:to-indigo-600 transition-all duration-300"
+              title="Record Video Message"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
             </button>
             <textarea
@@ -297,6 +411,14 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
         <PhotoAlbum 
           currentRoom={currentRoom} 
           onClose={() => setShowAlbum(false)} 
+        />
+      )}
+
+      {/* Relationship Stats Modal */}
+      {showStats && (
+        <RelationshipStats 
+          currentRoom={currentRoom} 
+          onClose={() => setShowStats(false)} 
         />
       )}
 
@@ -340,6 +462,53 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Video Recording Modal */}
+      {showVideoRecorder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white/90 backdrop-blur-lg rounded-2xl border border-white/30 shadow-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold text-center text-gray-800 mb-4">Record Video Message</h3>
+            
+            <div className="text-center space-y-4">
+              <div className="bg-gray-100 rounded-lg p-8">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                {isRecording ? (
+                  <p className="text-sm text-red-600 mt-2 font-medium">Recording in progress...</p>
+                ) : (
+                  <p className="text-sm text-gray-600 mt-2">Ready to record</p>
+                )}
+              </div>
+
+              <div className="flex space-x-3">
+                {!isRecording ? (
+                  <button
+                    onClick={startVideoRecording}
+                    className="flex-1 py-2 px-4 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg hover:from-red-600 hover:to-pink-600 transition-all duration-300 font-medium"
+                  >
+                    Start Recording
+                  </button>
+                ) : (
+                  <button
+                    onClick={stopVideoRecording}
+                    className="flex-1 py-2 px-4 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-300 font-medium"
+                  >
+                    Stop Recording
+                  </button>
+                )}
+                
+                <button
+                  onClick={() => setShowVideoRecorder(false)}
+                  className="flex-1 py-2 px-4 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

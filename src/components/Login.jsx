@@ -10,10 +10,11 @@ const Login = ({ onLogin }) => {
   const [createNew, setCreateNew] = useState(false);
 
   const calculateLoveDays = () => {
-    const startDate = new Date('2024-07-21');
+    const startDate = new Date('2024-07-21T00:00:00');
     const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
     const timeDiff = today.getTime() - startDate.getTime();
-    const daysDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
     return daysDiff;
   };
 
