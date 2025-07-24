@@ -1,7 +1,8 @@
-// File: src/components/RelationshipStats.jsx
+// File: src/components/RelationshipStatsSupabase.jsx
 import React, { useState, useEffect } from "react";
+import { supabase } from "../supabase/supabase";
 
-const RelationshipStats = ({ currentRoom, currentUser, onClose }) => {
+const RelationshipStatsSupabase = ({ currentRoom, currentUser, onClose }) => {
   const [stats, setStats] = useState({
     daysTogether: 0,
     totalMessages: 0,
@@ -22,27 +23,92 @@ const RelationshipStats = ({ currentRoom, currentUser, onClose }) => {
   const calculateStats = async () => {
     setLoading(true);
     try {
-      // Check cache first (5 minute cache)
-      const cacheKey = `relationshipStats_${currentRoom}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const { data, timestamp } = JSON.parse(cached);
-        const cacheAge = Date.now() - timestamp;
-        const cacheTimeout = 5 * 60 * 1000; // 5 minutes
-        
-        if (cacheAge < cacheTimeout) {
-          setStats(data);
-          setLoading(false);
-          return;
-        }
-      }
       // Calculate days together with timezone awareness
       const startDate = new Date(2024, 6, 21); // July 21, 2024 in local timezone
       const today = new Date();
       const timeDiff = today.getTime() - startDate.getTime();
       const daysTogether = Math.max(1, Math.ceil(timeDiff / (1000 * 3600 * 24)));
 
-      // Load messages from localStorage instead of Firestore
+      // Load messages from Supabase
+      const { data: messages, error: messagesError } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('room_id', currentRoom)
+        .order('created_at', { ascending: true });
+
+      if (messagesError) {
+        console.error('Error fetching messages:', messagesError);
+        // Fallback to localStorage
+        return await calculateStatsFromLocalStorage(daysTogether);
+      }
+
+      let totalMessages = messages.length;
+      let photosShared = 0;
+      let videosShared = 0;
+      let pdfsShared = 0;
+      let messagesFromYou = 0;
+      let messagesFromThem = 0;
+
+      messages.forEach(msg => {
+        // Count messages by user using actual user name
+        if (msg.user_name === currentUser) {
+          messagesFromYou++;
+        } else {
+          messagesFromThem++;
+        }
+
+        // Count media types
+        if (msg.text.startsWith('data:image/') || msg.text.startsWith('http')) {
+          photosShared++;
+        } else if (msg.text.startsWith('{"type":"video"')) {
+          videosShared++;
+        } else if (msg.text.startsWith('{"type":"pdf"')) {
+          pdfsShared++;
+        }
+      });
+
+      // Count photos in albums from Supabase
+      const { data: photoAlbums, error: albumsError } = await supabase
+        .from('photo_albums')
+        .select('*')
+        .eq('room_id', currentRoom);
+
+      if (!albumsError && photoAlbums) {
+        photosShared += photoAlbums.length;
+      }
+
+      const newStats = {
+        daysTogether,
+        totalMessages,
+        photosShared,
+        videosShared,
+        pdfsShared,
+        messagesFromYou,
+        messagesFromThem
+      };
+
+      setStats(newStats);
+
+      // Cache the results with shorter cache time since Supabase is fast
+      const cacheKey = `relationshipStats_${currentRoom}`;
+      localStorage.setItem(cacheKey, JSON.stringify({
+        data: newStats,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.error('Error calculating stats:', error);
+      // Fallback to localStorage calculation
+      const startDate = new Date(2024, 6, 21);
+      const today = new Date();
+      const daysTogether = Math.max(1, Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 3600 * 24)));
+      await calculateStatsFromLocalStorage(daysTogether);
+    }
+    setLoading(false);
+  };
+
+  const calculateStatsFromLocalStorage = async (daysTogether) => {
+    try {
+      // Fallback to localStorage if Supabase fails
       const savedMessages = localStorage.getItem(`chatMessages_${currentRoom}`);
       const messages = savedMessages ? JSON.parse(savedMessages) : [];
       
@@ -82,7 +148,7 @@ const RelationshipStats = ({ currentRoom, currentUser, onClose }) => {
         });
       }
 
-      const newStats = {
+      setStats({
         daysTogether,
         totalMessages,
         photosShared,
@@ -90,20 +156,10 @@ const RelationshipStats = ({ currentRoom, currentUser, onClose }) => {
         pdfsShared,
         messagesFromYou,
         messagesFromThem
-      };
-
-      setStats(newStats);
-
-      // Cache the results
-      const cacheKey = `relationshipStats_${currentRoom}`;
-      localStorage.setItem(cacheKey, JSON.stringify({
-        data: newStats,
-        timestamp: Date.now()
-      }));
+      });
     } catch (error) {
-      console.error('Error calculating stats:', error);
+      console.error('Error calculating stats from localStorage:', error);
     }
-    setLoading(false);
   };
 
   const statCards = [
@@ -119,9 +175,14 @@ const RelationshipStats = ({ currentRoom, currentUser, onClose }) => {
       <div className="w-full max-w-4xl h-[90vh] bg-white/90 backdrop-blur-lg rounded-2xl border border-white/30 shadow-lg flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/30">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-pink-500 to-rose-500 bg-clip-text text-transparent">
-            Our Journey Together
-          </h2>
+          <div>
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-pink-500 to-rose-500 bg-clip-text text-transparent">
+              Our Journey Together ✨
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              {loading ? 'Loading...' : 'Powered by Supabase - Real-time & Accurate'}
+            </p>
+          </div>
           <button
             onClick={onClose}
             className="p-2 hover:bg-white/20 rounded-lg transition-colors"
@@ -136,7 +197,9 @@ const RelationshipStats = ({ currentRoom, currentUser, onClose }) => {
         <div className="flex-1 p-6 overflow-y-auto">
           {loading ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">Loading...</p>
+              <div className="text-6xl mb-4 animate-pulse">📊</div>
+              <p className="text-gray-500 text-lg">Calculating your journey...</p>
+              <p className="text-gray-400 text-sm">This should be much faster now!</p>
             </div>
           ) : (
             <>
@@ -171,11 +234,19 @@ const RelationshipStats = ({ currentRoom, currentUser, onClose }) => {
                     <p className="text-sm text-gray-600">Messages from Them</p>
                   </div>
                 </div>
+                <div className="mt-4 bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-gradient-to-r from-pink-500 to-rose-500 h-2 rounded-full transition-all duration-500"
+                    style={{ 
+                      width: `${stats.totalMessages > 0 ? (stats.messagesFromYou / stats.totalMessages) * 100 : 50}%` 
+                    }}
+                  ></div>
+                </div>
               </div>
 
               {/* Fun Facts */}
               <div className="bg-white/60 backdrop-blur-sm rounded-xl border border-white/30 p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Fun Facts</h3>
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Fun Facts ✨</h3>
                 <div className="space-y-3">
                   <div className="flex items-center space-x-3">
                     <span className="text-xl">📅</span>
@@ -195,6 +266,12 @@ const RelationshipStats = ({ currentRoom, currentUser, onClose }) => {
                       You've shared <strong>{stats.photosShared + stats.videosShared}</strong> precious memories together!
                     </p>
                   </div>
+                  <div className="flex items-center space-x-3">
+                    <span className="text-xl">⚡</span>
+                    <p className="text-sm text-gray-700">
+                      <strong>Real-time sync</strong> - Your data is now backed up to the cloud!
+                    </p>
+                  </div>
                 </div>
               </div>
             </>
@@ -205,4 +282,4 @@ const RelationshipStats = ({ currentRoom, currentUser, onClose }) => {
   );
 };
 
-export default RelationshipStats;
+export default RelationshipStatsSupabase;

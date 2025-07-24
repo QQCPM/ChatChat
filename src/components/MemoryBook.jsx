@@ -13,6 +13,7 @@ const MemoryBook = ({ currentRoom, currentUser, onClose }) => {
   const [showCreator, setShowCreator] = useState(false);
   const [editingMemory, setEditingMemory] = useState(null);
   const [activeView, setActiveView] = useState('gallery'); // 'gallery', 'editor'
+  const [loading, setLoading] = useState(false);
 
   // Load memories on mount and when room changes
   useEffect(() => {
@@ -26,29 +27,42 @@ const MemoryBook = ({ currentRoom, currentUser, onClose }) => {
     filterMemories();
   }, [memories, searchQuery, selectedCategory]);
 
-  const loadMemoriesFromStorage = () => {
-    const loadedMemories = loadMemories(currentRoom);
-    setMemories(loadedMemories);
+  const loadMemoriesFromStorage = async () => {
+    try {
+      setLoading(true);
+      const loadedMemories = await loadMemories(currentRoom);
+      setMemories(loadedMemories);
+    } catch (error) {
+      console.error('Error loading memories:', error);
+      setMemories([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filterMemories = () => {
-    let filtered = memories;
+  const filterMemories = async () => {
+    try {
+      let filtered = memories;
 
-    // Filter by category
-    if (selectedCategory !== 'all') {
-      filtered = getMemoriesByCategory(currentRoom, selectedCategory);
-    }
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      filtered = searchMemories(currentRoom, searchQuery);
-      // Re-apply category filter if needed
+      // Filter by category
       if (selectedCategory !== 'all') {
-        filtered = filtered.filter(m => m.category === selectedCategory);
+        filtered = await getMemoriesByCategory(currentRoom, selectedCategory);
       }
-    }
 
-    setFilteredMemories(filtered);
+      // Filter by search query
+      if (searchQuery.trim()) {
+        filtered = await searchMemories(currentRoom, searchQuery);
+        // Re-apply category filter if needed
+        if (selectedCategory !== 'all') {
+          filtered = filtered.filter(m => m.category === selectedCategory);
+        }
+      }
+
+      setFilteredMemories(filtered);
+    } catch (error) {
+      console.error('Error filtering memories:', error);
+      setFilteredMemories([]);
+    }
   };
 
   const handleMemoryCreated = () => {
@@ -130,9 +144,9 @@ const MemoryBook = ({ currentRoom, currentUser, onClose }) => {
 
         {/* Search and Filter Bar */}
         <div className="p-6 border-b border-rose-200/50 bg-white/20">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1 relative">
+          <div className="space-y-4">
+            {/* Search - Always gets full width */}
+            <div className="relative">
               <input
                 type="text"
                 value={searchQuery}
@@ -145,11 +159,11 @@ const MemoryBook = ({ currentRoom, currentUser, onClose }) => {
               </svg>
             </div>
 
-            {/* Category Filter */}
-            <div className="flex flex-wrap gap-2">
+            {/* Category Filters - Separate row with proper wrapping */}
+            <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 ${
+                className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 whitespace-nowrap ${
                   selectedCategory === 'all'
                     ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg'
                     : 'bg-white/60 text-rose-700 hover:bg-white/80'
@@ -165,7 +179,7 @@ const MemoryBook = ({ currentRoom, currentUser, onClose }) => {
                   <button
                     key={key}
                     onClick={() => setSelectedCategory(key)}
-                    className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 ${
+                    className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 whitespace-nowrap ${
                       selectedCategory === key
                         ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg'
                         : 'bg-white/60 text-rose-700 hover:bg-white/80'
@@ -181,7 +195,13 @@ const MemoryBook = ({ currentRoom, currentUser, onClose }) => {
 
         {/* Memory Gallery */}
         <div className="flex-1 p-6 overflow-y-auto">
-          {filteredMemories.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="text-8xl mb-4 animate-pulse">📚</div>
+              <h3 className="text-2xl font-semibold text-rose-600 mb-2">Loading Memories...</h3>
+              <p className="text-rose-500">Fetching your precious moments together</p>
+            </div>
+          ) : filteredMemories.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="text-8xl mb-4">📝</div>
               <h3 className="text-2xl font-semibold text-rose-600 mb-2">

@@ -1,8 +1,8 @@
 // File: src/utils/memoryUtils.js
+// Using localStorage for memory storage (can be migrated to Supabase later)
 
 // Memory data structure
 const createMemory = (title, category = 'general', template = null) => ({
-  id: `memory_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
   title: title.trim(),
   category,
   template,
@@ -113,67 +113,123 @@ const memoryTemplates = {
       'How you make me feel...',
       'Why I love you...'
     ]
+  },
+  moments: {
+    title: 'A Sweet Moment',
+    prompts: [
+      'What happened?',
+      'What made this moment special?',
+      'How did we both react?'
+    ]
+  },
+  dreams: {
+    title: 'Our Future Dreams',
+    prompts: [
+      'What do we dream about together?',
+      'Where do we see ourselves?',
+      'What are we most excited about?'
+    ]
+  },
+  photos: {
+    title: 'Photo Memory',
+    prompts: [
+      'What was happening in this photo?',
+      'What do you remember about this day?',
+      'Why is this photo special to us?'
+    ]
+  },
+  general: {
+    title: 'A Memory Together',
+    prompts: [
+      'What happened?',
+      'How did it make you feel?',
+      'Why is this memory important?'
+    ]
   }
 };
 
-// Storage functions
-const getMemoryStorageKey = (roomCode) => `memories_${roomCode}`;
+// localStorage-based memory storage functions
+const getMemoriesKey = (uid) => `memories_${uid}`;
 
-const saveMemories = (roomCode, memories) => {
+const loadMemories = async (uid) => {
   try {
-    localStorage.setItem(getMemoryStorageKey(roomCode), JSON.stringify(memories));
-    return true;
-  } catch (error) {
-    console.error('Error saving memories:', error);
-    return false;
-  }
-};
-
-const loadMemories = (roomCode) => {
-  try {
-    const stored = localStorage.getItem(getMemoryStorageKey(roomCode));
-    return stored ? JSON.parse(stored) : [];
+    const stored = localStorage.getItem(getMemoriesKey(uid));
+    const memories = stored ? JSON.parse(stored) : [];
+    // Sort by creation date (descending)
+    return memories.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch (error) {
     console.error('Error loading memories:', error);
     return [];
   }
 };
 
-const addMemory = (roomCode, memory) => {
-  const memories = loadMemories(roomCode);
-  memories.unshift(memory); // Add to beginning for recent-first order
-  return saveMemories(roomCode, memories);
-};
-
-const updateMemory = (roomCode, memoryId, updatedMemory) => {
-  const memories = loadMemories(roomCode);
-  const index = memories.findIndex(m => m.id === memoryId);
-  if (index !== -1) {
-    memories[index] = { ...updatedMemory, lastModified: new Date().toISOString() };
-    return saveMemories(roomCode, memories);
+const addMemory = async (uid, memory) => {
+  try {
+    const memories = await loadMemories(uid);
+    const newMemory = {
+      ...memory,
+      id: `memory_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    };
+    memories.push(newMemory);
+    localStorage.setItem(getMemoriesKey(uid), JSON.stringify(memories));
+    return true;
+  } catch (error) {
+    console.error('Error adding memory:', error);
+    return false;
   }
-  return false;
 };
 
-const deleteMemory = (roomCode, memoryId) => {
-  const memories = loadMemories(roomCode);
-  const filtered = memories.filter(m => m.id !== memoryId);
-  return saveMemories(roomCode, filtered);
-};
-
-const addEntryToMemory = (roomCode, memoryId, entry) => {
-  const memories = loadMemories(roomCode);
-  const memory = memories.find(m => m.id === memoryId);
-  if (memory) {
-    memory.entries.push(entry);
-    memory.lastModified = new Date().toISOString();
-    return saveMemories(roomCode, memories);
+const updateMemory = async (uid, memoryId, updatedMemory) => {
+  try {
+    const memories = await loadMemories(uid);
+    const index = memories.findIndex(m => m.id === memoryId);
+    if (index !== -1) {
+      memories[index] = { 
+        ...memories[index], 
+        ...updatedMemory, 
+        lastModified: new Date().toISOString() 
+      };
+      localStorage.setItem(getMemoriesKey(uid), JSON.stringify(memories));
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error updating memory:', error);
+    return false;
   }
-  return false;
 };
 
-const searchMemories = (roomCode, query) => {
-  const memories = loadMemories(roomCode);
+const deleteMemory = async (uid, memoryId) => {
+  try {
+    const memories = await loadMemories(uid);
+    const filtered = memories.filter(m => m.id !== memoryId);
+    localStorage.setItem(getMemoriesKey(uid), JSON.stringify(filtered));
+    return true;
+  } catch (error) {
+    console.error('Error deleting memory:', error);
+    return false;
+  }
+};
+
+const addEntryToMemory = async (uid, memoryId, entry) => {
+  try {
+    const memories = await loadMemories(uid);
+    const memoryIndex = memories.findIndex(m => m.id === memoryId);
+    if (memoryIndex !== -1) {
+      memories[memoryIndex].entries.push(entry);
+      memories[memoryIndex].lastModified = new Date().toISOString();
+      localStorage.setItem(getMemoriesKey(uid), JSON.stringify(memories));
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error adding entry to memory:', error);
+    return false;
+  }
+};
+
+const searchMemories = async (uid, query) => {
+  const memories = await loadMemories(uid);
   if (!query.trim()) return memories;
   
   const lowerQuery = query.toLowerCase();
@@ -185,8 +241,8 @@ const searchMemories = (roomCode, query) => {
   );
 };
 
-const getMemoriesByCategory = (roomCode, category) => {
-  const memories = loadMemories(roomCode);
+const getMemoriesByCategory = async (uid, category) => {
+  const memories = await loadMemories(uid);
   return category === 'all' ? memories : memories.filter(m => m.category === category);
 };
 
@@ -196,7 +252,6 @@ export {
   memoryCategories,
   memoryTemplates,
   loadMemories,
-  saveMemories,
   addMemory,
   updateMemory,
   deleteMemory,

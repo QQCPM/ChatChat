@@ -30,18 +30,18 @@ const MemoryCreator = ({ currentRoom, currentUser, onClose, onMemoryCreated }) =
     
     try {
       const memory = createMemory(customTitle, selectedCategory, selectedTemplate);
-      const success = addMemory(currentRoom, memory);
+      const success = await addMemory(currentRoom, memory);
       
       if (success) {
         onMemoryCreated();
       } else {
         alert('Failed to create memory. Please try again.');
-        setIsCreating(false);
       }
     } catch (error) {
       console.error('Error creating memory:', error);
       alert('Error creating memory. Please try again.');
-      setIsCreating(false);
+    } finally {
+        setIsCreating(false);
     }
   };
 

@@ -31,7 +31,7 @@ const MemoryEditor = ({ memory, currentRoom, currentUser, onClose, onMemoryUpdat
     if (!newEntry.trim()) return;
 
     const entry = createMemoryEntry(currentUser, newEntry);
-    const success = addEntryToMemory(currentRoom, memory.id, entry);
+    const success = await addEntryToMemory(currentRoom, memory.id, entry);
     
     if (success) {
       setNewEntry('');
@@ -43,7 +43,7 @@ const MemoryEditor = ({ memory, currentRoom, currentUser, onClose, onMemoryUpdat
   };
 
   const handleDeleteMemory = async () => {
-    const success = deleteMemory(currentRoom, memory.id);
+    const success = await deleteMemory(currentRoom, memory.id);
     if (success) {
       onMemoryDeleted();
     } else {

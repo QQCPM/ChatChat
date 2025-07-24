@@ -3,13 +3,14 @@ import React, { useState, useEffect } from "react";
 import Button from "./ui/Button";
 import PhotoAlbum from "./PhotoAlbum";
 import StorageManager from "./StorageManager";
-import RelationshipStats from "./RelationshipStats";
+import RelationshipStatsSupabase from "./RelationshipStatsSupabase";
 import ThemeSettings from "./ThemeSettings";
 import ThemeElements from "./ThemeElements";
 import MemoryBook from "./MemoryBook";
 import { useTheme } from "../contexts/ThemeContext";
+import { signOut } from "../supabase/supabase";
 
-const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) => {
+const Chat = ({ user, couple, messages, onSendMessage }) => {
   const [text, setText] = useState("");
   const [showGallery, setShowGallery] = useState(false);
   const [uploadedPhotos, setUploadedPhotos] = useState([]);
@@ -27,6 +28,18 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
   // Theme context
   const { getCurrentThemeConfig, currentTheme } = useTheme();
   const themeConfig = getCurrentThemeConfig();
+
+  // Get partner's name
+  const getPartnerName = () => {
+    if (!couple) return 'Partner';
+    
+    // Determine which partner is the current user and return the other's name
+    if (couple.user1_id === user.id) {
+      return couple.user2_name || 'Your Partner';
+    } else {
+      return couple.user1_name || 'Your Partner';
+    }
+  };
 
   // Get background style based on theme
   const getBackgroundStyle = () => {
@@ -269,8 +282,8 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
         <header className="p-4 border-b border-white/30">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">ChatChat</h1>
-              <p className="text-sm text-gray-600 mt-1">Connected as {currentUser}</p>
+              <h1 className="text-2xl font-bold text-gray-800">💕 {getPartnerName()}</h1>
+              <p className="text-sm text-gray-600 mt-1">Your private couple chat</p>
             </div>
             <div className="flex items-center space-x-2">
               <button
@@ -319,7 +332,7 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
                 </svg>
               </button>
               <button 
-                onClick={onLogout}
+                onClick={() => signOut()}
                 className="px-3 py-1.5 text-sm bg-gradient-to-r from-pink-500 to-rose-500 text-white font-medium rounded-lg hover:from-pink-600 hover:to-rose-600 transition-all duration-300"
               >
                 Logout
@@ -333,9 +346,9 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
             {messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex ${msg.user === currentUser ? "justify-end" : "justify-start"}`}>
+                className={`flex ${msg.user === (user.user_metadata?.full_name || user.email) ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={getMessageBubbleStyle(msg.user === currentUser)}>
+                  className={getMessageBubbleStyle(msg.user === (user.user_metadata?.full_name || user.email))}>
                   {msg.text.startsWith("data:image/") || msg.text.startsWith("http") ? (
                     <div className="group relative">
                       <img src={msg.text} alt="sent" className="rounded-lg max-w-full h-auto" />
@@ -494,7 +507,7 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
       {/* Storage Manager Modal */}
       {showStorageManager && (
         <StorageManager 
-          currentRoom={currentRoom} 
+          currentRoom={couple.couple_id} 
           onClose={() => setShowStorageManager(false)} 
         />
       )}
@@ -502,15 +515,16 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
       {/* Photo Album Modal */}
       {showAlbum && (
         <PhotoAlbum 
-          currentRoom={currentRoom} 
+          currentRoom={couple.couple_id} 
           onClose={() => setShowAlbum(false)} 
         />
       )}
 
       {/* Relationship Stats Modal */}
       {showStats && (
-        <RelationshipStats 
-          currentRoom={currentRoom} 
+        <RelationshipStatsSupabase 
+          currentRoom={couple.couple_id}
+          currentUser={user.user_metadata?.full_name || user.email}
           onClose={() => setShowStats(false)} 
         />
       )}
@@ -530,7 +544,7 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
                 <button
                   key={album.key}
                   onClick={() => {
-                    const albums = JSON.parse(localStorage.getItem(`photoAlbums_${currentRoom}`) || '{"anniversary":[],"favorites":[],"memories":[],"special":[]}');
+                    const albums = JSON.parse(localStorage.getItem(`photoAlbums_${user.id}`) || '{"anniversary":[],"favorites":[],"memories":[],"special":[]}');
                     const photoData = {
                       id: Date.now() + Math.random(),
                       src: selectedPhotoForAlbum,
@@ -539,7 +553,7 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
                       size: 0
                     };
                     albums[album.key].push(photoData);
-                    localStorage.setItem(`photoAlbums_${currentRoom}`, JSON.stringify(albums));
+                    localStorage.setItem(`photoAlbums_${user.id}`, JSON.stringify(albums));
                     setSelectedPhotoForAlbum(null);
                   }}
                   className="flex flex-col items-center justify-center p-4 bg-white/60 hover:bg-white/80 rounded-lg transition-all duration-300 border border-white/30"
@@ -614,8 +628,8 @@ const Chat = ({ currentUser, messages, onSendMessage, onLogout, currentRoom }) =
       {/* Memory Book Modal */}
       {showMemoryBook && (
         <MemoryBook
-          currentRoom={currentRoom}
-          currentUser={currentUser}
+          currentRoom={couple.couple_id}
+          currentUser={user.user_metadata?.full_name || user.email}
           onClose={() => setShowMemoryBook(false)}
         />
       )}

@@ -1,5 +1,6 @@
 // File: src/components/PhotoAlbum.jsx
 import React, { useState, useEffect } from "react";
+import { getPhotoAlbums, addPhotoToAlbum, supabase } from "../supabase/supabase";
 
 const PhotoAlbum = ({ currentRoom, onClose }) => {
   const [albums, setAlbums] = useState({
@@ -9,56 +10,129 @@ const PhotoAlbum = ({ currentRoom, onClose }) => {
     special: []
   });
   const [activeTab, setActiveTab] = useState('anniversary');
-  const [showUpload, setShowUpload] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Load albums from localStorage
+  // Load albums from Supabase
   useEffect(() => {
     if (currentRoom) {
-      const savedAlbums = localStorage.getItem(`photoAlbums_${currentRoom}`);
-      if (savedAlbums) {
-        setAlbums(JSON.parse(savedAlbums));
-      }
+      loadPhotos();
     }
   }, [currentRoom]);
 
-  // Save albums to localStorage
-  useEffect(() => {
-    if (currentRoom && Object.values(albums).some(album => album.length > 0)) {
-      localStorage.setItem(`photoAlbums_${currentRoom}`, JSON.stringify(albums));
-    }
-  }, [albums, currentRoom]);
-
-  const handlePhotoUpload = (event, albumType) => {
-    const files = event.target.files;
-    if (files && files.length > 0) {
-      Array.from(files).forEach(file => {
-        if (file.type.startsWith('image/')) {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const photoData = {
-              id: Date.now() + Math.random(),
-              src: e.target.result,
-              name: file.name,
-              uploadDate: new Date().toLocaleDateString(),
-              size: file.size
-            };
-            setAlbums(prev => ({
-              ...prev,
-              [albumType]: [...prev[albumType], photoData]
-            }));
-          };
-          reader.readAsDataURL(file);
+  const loadPhotos = async () => {
+    setLoading(true);
+    const newAlbums = { anniversary: [], favorites: [], memories: [], special: [] };
+    try {
+      // Try Supabase first, fallback to localStorage
+      const photos = await getPhotoAlbums(currentRoom);
+      
+      if (photos.length === 0) {
+        // Fallback to localStorage for backward compatibility
+        const localAlbums = localStorage.getItem(`photoAlbums_${currentRoom}`);
+        if (localAlbums) {
+          const parsedAlbums = JSON.parse(localAlbums);
+          setAlbums(parsedAlbums);
+        } else {
+          setAlbums(newAlbums);
         }
-      });
+      } else {
+        photos.forEach(photo => {
+          const photoData = {
+            id: photo.id,
+            src: photo.photo_url,
+            name: photo.photo_name,
+            uploadDate: photo.upload_date,
+            size: photo.file_size
+          };
+          if (newAlbums[photo.album_name]) {
+            newAlbums[photo.album_name].push(photoData);
+          }
+        });
+        setAlbums(newAlbums);
+      }
+    } catch (error) {
+      console.error("Error loading photos from Supabase, trying localStorage: ", error);
+      // Fallback to localStorage
+      try {
+        const localAlbums = localStorage.getItem(`photoAlbums_${currentRoom}`);
+        if (localAlbums) {
+          const parsedAlbums = JSON.parse(localAlbums);
+          setAlbums(parsedAlbums);
+        } else {
+          setAlbums(newAlbums);
+        }
+      } catch (localError) {
+        console.error("Error loading from localStorage: ", localError);
+        setAlbums(newAlbums);
+      }
     }
-    event.target.value = '';
+    setLoading(false);
   };
 
-  const removePhoto = (albumType, photoId) => {
-    setAlbums(prev => ({
-      ...prev,
-      [albumType]: prev[albumType].filter(photo => photo.id !== photoId)
-    }));
+  const handlePhotoUpload = async (event, albumType) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      setLoading(true);
+      for (const file of Array.from(files)) {
+        if (file.type.startsWith('image/')) {
+          try {
+            // Convert to base64 for simplicity (for small images)
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+              const photoData = {
+                src: e.target.result,
+                name: file.name,
+                uploadDate: new Date().toLocaleDateString(),
+                size: file.size
+              };
+              
+              try {
+                await addPhotoToAlbum(currentRoom, albumType, photoData);
+                loadPhotos();
+              } catch (error) {
+                console.error('Error adding photo to Supabase:', error);
+                // Fallback to localStorage
+                const localAlbums = JSON.parse(localStorage.getItem(`photoAlbums_${currentRoom}`) || '{}');
+                if (!localAlbums[albumType]) localAlbums[albumType] = [];
+                localAlbums[albumType].push({ ...photoData, id: Date.now() });
+                localStorage.setItem(`photoAlbums_${currentRoom}`, JSON.stringify(localAlbums));
+                loadPhotos();
+              }
+            };
+            reader.readAsDataURL(file);
+          } catch (error) {
+            console.error('Error processing file:', error);
+          }
+        }
+      }
+    }
+    event.target.value = '';
+    setLoading(false);
+  };
+
+  const removePhoto = async (albumType, photo) => {
+    try {
+      // Delete from Supabase
+      await supabase
+        .from('photo_albums')
+        .delete()
+        .eq('id', photo.id);
+      
+      loadPhotos();
+    } catch (error) {
+      console.error("Error removing photo from Supabase: ", error);
+      // Fallback to localStorage
+      try {
+        const localAlbums = JSON.parse(localStorage.getItem(`photoAlbums_${currentRoom}`) || '{}');
+        if (localAlbums[albumType]) {
+          localAlbums[albumType] = localAlbums[albumType].filter(p => p.id !== photo.id);
+          localStorage.setItem(`photoAlbums_${currentRoom}`, JSON.stringify(localAlbums));
+          loadPhotos();
+        }
+      } catch (localError) {
+        console.error("Error removing photo from localStorage: ", localError);
+      }
+    }
   };
 
   const albumTabs = [
@@ -132,7 +206,13 @@ const PhotoAlbum = ({ currentRoom, onClose }) => {
           </div>
 
           {/* Photo Grid */}
-          {albums[activeTab].length === 0 ? (
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4 animate-pulse">📸</div>
+              <p className="text-gray-500 text-lg">Loading Photos...</p>
+              <p className="text-gray-400 text-sm mt-2">Fetching your beautiful moments</p>
+            </div>
+          ) : albums[activeTab].length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">{albumTabs.find(tab => tab.key === activeTab)?.icon}</div>
               <p className="text-gray-500 text-lg">No photos yet</p>
@@ -152,7 +232,7 @@ const PhotoAlbum = ({ currentRoom, onClose }) => {
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300">
                     <button
-                      onClick={() => removePhoto(activeTab, photo.id)}
+                      onClick={() => removePhoto(activeTab, photo)}
                       className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-600"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
