@@ -37,7 +37,8 @@ const RelationshipStats = ({ currentRoom, currentUser, onClose }) => {
         }
       }
       // Calculate days together with timezone awareness
-      const startDate = new Date(2024, 6, 21); // July 21, 2024 in local timezone
+      // Start date: July 21, 2024 (excluded), so July 22 is day 1
+      const startDate = new Date(2024, 6, 22); // July 22, 2024 in local timezone (day 1)
       const today = new Date();
       const timeDiff = today.getTime() - startDate.getTime();
       const daysTogether = Math.max(1, Math.ceil(timeDiff / (1000 * 3600 * 24)));

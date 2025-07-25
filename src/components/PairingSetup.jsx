@@ -186,7 +186,7 @@ const PairingSetup = ({ user, onPairingComplete }) => {
                   onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                   placeholder="COUPLE-ABC123"
                   className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-300 text-center font-mono text-lg"
-                  maxLength={12}
+                  maxLength={13}
                 />
               </div>
 
