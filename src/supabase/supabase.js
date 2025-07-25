@@ -12,7 +12,7 @@ export const signInWithGoogle = async () => {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}`
+      redirectTo: import.meta.env.PROD ? 'https://chatchaat.netlify.app' : `${window.location.origin}`
     }
   })
   
