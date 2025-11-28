@@ -2,6 +2,10 @@
   publish = "dist"
   command = "npm run build"
 
+# Required Environment Variables (set in Netlify Dashboard > Site settings > Environment variables):
+# - VITE_SUPABASE_URL: Your Supabase project URL (e.g., https://xxxxx.supabase.co)
+# - VITE_SUPABASE_ANON_KEY: Your Supabase anon/public API key
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

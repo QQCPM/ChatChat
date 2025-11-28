@@ -14,15 +14,24 @@
    - **Project URL** (looks like: `https://abcdefghijklmnop.supabase.co`)
    - **anon public** key (long JWT token starting with `eyJhbGci...`)
 
-## Step 3: Update Configuration
+## Step 3: Configure Environment Variables
 
-1. Open `src/supabase/supabase.js`
-2. Replace the placeholder values:
+1. Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
 
-```javascript
-const supabaseUrl = 'https://your-project-ref.supabase.co'  // Your Project URL
-const supabaseAnonKey = 'eyJhbGci...'  // Your anon public key
-```
+2. Open the `.env` file and add your Supabase credentials:
+   ```env
+   VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+   VITE_SUPABASE_ANON_KEY=eyJhbGci...your-anon-key...
+   ```
+
+3. **For Netlify Deployment**: Add these same environment variables in your Netlify dashboard:
+   - Go to Site settings > Environment variables
+   - Add `VITE_SUPABASE_URL` with your project URL
+   - Add `VITE_SUPABASE_ANON_KEY` with your anon key
+   - Trigger a new deploy after adding the variables
 
 ## Step 4: Set Up Database Schema
 
